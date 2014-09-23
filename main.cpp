@@ -16,30 +16,27 @@ int main()
 {
     unsigned int n, i;
     double x, x_min, x_max;
-    double *u, u_min, u_max;
     double h_step, V;
 
-    n=100;
-    x_min = 0.;                                     // area of calculation    //
-    x_max = 1.;                                     //                        //
-    x = x_min;                                      // initial value for var. //
-    u_min = 0.;                                     // dirichlet-boundaries   //
-    u_max = 0.;                                     //                        //
+    n=100;                                          // dimension              //
+    tolerance = 1e-10;                              // tolerance              //
+    rho_min = 0.;                                   // area of calculation    //
+    rho_max = 1.;                                   //                        //
+    rho = rho_min;                                  // initial value for var. //
     h_step = (x_max - x_min) / n;                   // stepsize               //
-    V =                                             // potential              //
+    V = rho**2.                                     // potential              //
 
 
-    fillmatrix(n, h_step, V);
-    searchmatrix();
-    jacobi();
+    // Jacobi algorithm
+    A = fillmatrix(n, h_step, V);
+    offA = offnorm(A)
 
-
-    u = new double[n];                              // initialize array for   //
-    u[0] = u_min;                                   // solution u             //
-    u[n] = u_max;                                   //                        //
-
-    // tridiag solves the equation Au = f
-    tridiag_poisson (h_step, n, u);
+    while (offA > tolerance)
+    {
+        searchlargest(A,p,q);                            // search f. larg. elem. // 
+        jacobi(A);                                  // jacobi rotation        // 
+        offA = offnorm(A)                           // calculate new norm     // 
+    }
 
     // output
     for (i = 0; i <= n + 1; i++)
@@ -51,7 +48,7 @@ int main()
     return 0;
 }
 
-double fillmatrix(int n, double h_step, double V)
+mat fillmatrix(int n, double h_step, double V)
 {
     mat A(n,n);
     A.zeros();
@@ -64,12 +61,36 @@ double fillmatrix(int n, double h_step, double V)
     return A;
 }
 
-double searchmatrix(double **A,int p, int q, int n)
+mat offnorm(mat A)
 {
-    double max;
+    unsigned int n;                                 // arraysize              //
+    double offA;                                    // norm over nondiags     //
+
+    n = A.n_rows;                                   // assume symmetry        //    
+
+    // loop over (upper) nondiagonal elements
+    //TODO: Get certain about indices. (Compare to searchlargest routine)
+    for (int i = 0; i < n; i++) {
+        for (int j = i+1; j < n; j++) {
+                offA += 2.*A(i,j)*A(i,j);           // 2x for symmetric mat.  // 
+        }
+    }
+    offA = sqrt(offA)
+
+    return offA
+}
+
+double searchlargest(mat A,int p, int q)
+{
+    unsigned int n;                                 // arraysize              //
+    double max;                                     // largest value in mat.  //
+                                                                                
+    n  = A.n_rows;                                  // assume symmetry        //
+
+    // loop over (upper) nondiagonal elements 
     for (int i = 0; i < n; ++i) {
-        for ( int j = i+1; j < n; ++j) {
-            double aij = fabs(A[i][j]);
+        for (int j = i+1; j < n; ++j) {
+            double aij = fabs(A(i,j));
             if ( aij > max)
                 {
                 max=aij; p=i;q=j;
@@ -78,13 +99,17 @@ double searchmatrix(double **A,int p, int q, int n)
         }
 }
 
-void jacobi(double **A, double **R, int k, int l, int n)
+void jacobi(mat A, mat R, int k, int l)
 {
-    ￼double s, c;
-    if ( A[k][l] != 0.0 ) {
-        double t, tau;
-        tau = (A[l][l] −A[k][k])/(2∗A[k][l]);
-        if ( tau >= 0 ) {
+    unsigned int n;                                 // arraysize              //
+    double s, c;                                    // sin(theta),cos(theta)  // 
+
+    n  = A.n_rows;                                  // assume symmetry        //
+
+    if ( A(k,l) != 0.0 ) {
+        double t, tau;                              // for defining s,c       //
+        tau = (A(l,l) − A(k,k))/(2.∗A(k,l));
+        if ( tau >= 0.0 ) {
             t = 1.0/(tau + sqrt(1.0 + tau∗tau));
         }
         else {
@@ -99,77 +124,25 @@ void jacobi(double **A, double **R, int k, int l, int n)
     }
 
     double akk, all, aik, ail, rik, ril;
-    akk = A[k][k];
-    all =A[l][l];
-    A[k][k] = c∗c∗a kk − 2.0∗c∗s∗A[k][l] + s∗s∗all ;
-    A[l][l] = s∗s∗a kk + 2.0∗c∗s∗A[k][l] + c∗c∗all;
-    A[k][l] = 0.0; // hard−coding non−diagonal elements by hand
-    A[l][k] = 0.0; // same here
+    akk = A(k,k);
+    all =A(l,l);
+    A(k,k) = c∗c∗a kk − 2.0∗c∗s∗A(k,l) + s∗s∗all ;
+    A(l,l) = s∗s∗a kk + 2.0∗c∗s∗A(k,l) + c∗c∗all;
+    A(k,l) = 0.0; // hard−coding non−diagonal elements by hand
+    A(l,k) = 0.0; // same here
     for ( int i = 0; i < n; i++ ) {
         if ( i != k && i != l ) {
-            aik = A[i][k];
-            ail =A[i][l];
-            A[i][k] = c∗aik − s∗ail;
-            A[k][i] =A[i][k];
-            A[i][l] = c∗ail + s∗aik;
-            A[l][i] = A[i][l];
+            aik = A(i,k);
+            ail =A(i,l);
+            A(i,k) = c∗aik − s∗ail;
+            A(k,i) =A(i,k);
+            A(i,l) = c∗ail + s∗aik;
+            A(l,i) = A(i,l);
         }
-        rik =R[i][k]; // new eigenvectors
-        ril =R[i][l];
-        R[i][k] = c∗rik − s∗ril;
-        R[i][l] = c∗ril + s∗rik;
+        rik =R(i,k); // new eigenvectors
+        ril =R(i,l);
+        R(i,k) = c∗rik − s∗ril;
+        R(i,l) = c∗ril + s∗rik;
     }
     return ;
 }
-
-//double func (double h_step, double x)
-//{
-//    // second derivative rhs-function
-//    double f;
-
-//    f = h_step*h_step*100.*exp(-10.*x);
-//    return f;
-//}
-
-// //TODO: Change the call of func and or func itself because of unnecessary FLOPs
-//void tridiag (double h_step, int n, double *u){
-//    /* Uses the Thomas-Algorithm, code from "Numerical Recipes,               *
-//     * Third Edition", p. 56 f.                                               */
-//    double a,b,c;
-//    double btemp;
-//    unsigned int i;
-//    vec temp(n);
-
-//    a = -1;
-//    c = a ;
-//    b = 2 ;
-
-//    btemp = b;
-//    u[1] = func(h_step, h_step*1.)/btemp;
-//    for(i = 2 ; i <= n; i++){
-//        temp[i] = c/btemp;
-//        btemp = b - a*temp[i];
-//        u[i] = (func(h_step, h_step*i) - a*u[i-1])/btemp;
-//    }
-
-//    for(i = n-1; i >= 1; i--){
-//        u[i] -= temp[i+1]*u[i+1];
-//    }
-//}
-
-
-//TODO: Change the call of func and or func itself because of unnecessary FLOPs
-//void tridiag_poisson (double h_step, int n, double *u){
-//    /* Just usable for poisson equation tridiagonal matrices. Reduces number  *
-//     * of FLOPs to 6N.                                                        */
-//    unsigned int i;
-//    vec ftemp(n);
-
-//    for (i = 2; i <= n; i++){
-//        ftemp[i] = ftemp[i-1] + i*func(h_step, h_step*i);
-//    }
-
-//    for (i = n-1; i >= 1; i--){
-//        u[i] = (ftemp[i] + u[i+1]*i)/(1. + i);
-//    }
-//}
