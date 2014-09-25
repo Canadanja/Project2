@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <armadillo>
+#include <iomanip>
 
 using namespace std;
 using namespace arma;
@@ -11,41 +12,43 @@ mat fillmatrix (unsigned int, double, vec);
 double offnorm (mat);
 void searchlargest (mat, unsigned int &, unsigned int&);
 void jacobi (mat &, mat &, unsigned int, unsigned int);
+void sorting (mat, mat, mat &, vec &);
 
 
 int main()
 {
-    unsigned int n, p, q;
-    double rho_min, rho_max;
-    double rho;
-    double h_step, offA;
-    double tolerance;
+    unsigned int n = 100.;                          // array size             //
+    unsigned int p = 0.;                            //                        //
+    unsigned int q = 0.;                            //                        //
+    double rho_min = 0.;                            // min. calc. area        //
+    double rho_max = 5.;                            // max. calc. area        //
+    double rho = rho_min;                           //                        //
+    double h_step = (rho_max-rho_min)/n;            // stepwidth              //
+    double tolerance = 1e-10;                       //                        //
+    double omega = 0.5;                             // strength of osc. pot.  //
+    double offA;                                    //                        //
+    vec V = zeros<vec>(n+1);                        // potential              // 
     mat A, R;                                       // Mainmat., Eigenvec.    // 
-    vec V;
+    mat T;                                          // sorted Eigenvectors    //
+    vec lambda;                                     // sorted Eigenvalues     //
     mat D, eigvec;                                  // same for armadillo     //
-    vec eigval;                                     // routine                //  
-    
-
-    n=100;                                          // dimension              //
-    tolerance = 1e-15;                              // tolerance              //
-    rho_min = 0.;                                   // area of calculation    //
-    rho_max = 5.0;                                  //                        //
-    h_step = (rho_max-rho_min)/n;
-    p = 0;
-    q = 0;     
+    vec eigval;                                     //                        //  
 
     // define potential
-    V.zeros(n+1);
-    rho = rho_min;
+    // TODO: write an init_potential function for arbitrary potentials
     for (unsigned int i = 0; i <= n; i++)
     {
         V(i) = rho*rho;
+        //V(i) = rho*rho*omega*omega-1./rho;
         rho += h_step;
     }
 
-   // Jacobi algorithm -- main part
-    A = fillmatrix(n, h_step, V);
-    R.eye(n-1,n-1);
+   /*--------------------------------------------------------------------------/
+   /                  Jacobi algorithm -- main part                            /          
+   /--------------------------------------------------------------------------*/
+    A = fillmatrix(n,h_step,V);                     // dense,symmetric matrix //
+    R.eye(n-1,n-1);                                 // eigenvector-matrix     //
+
     offA = offnorm(A);
     while (offA > tolerance)
     {
@@ -53,38 +56,33 @@ int main()
         jacobi(A,R,p,q);                            // jacobi rotation        // 
         offA = offnorm(A);                          // calculate new norm     // 
     }
-
-    // sort the eigenvalues 
-    vec K;
-    K.zeros(n-1);
-    for (unsigned int i = 0; i < n-1; i++)
-    {
-        K(i) = A(i,i);
-    }
-    vec G = sort(K);
+    
+    // bring the eigenvalues and its associated eigenvectors in right order   // 
+    sorting(A,R,T,lambda);                          // T, lambda -> sorted    // 
+    // TODO: Normalization is missing!
+    /*------------------------------------------------------------------------*/
 
     // Armadillo routine for eigenvalues
-    D = fillmatrix(n, h_step, V);                      
+    D = fillmatrix(n,h_step,V);                      
     eig_sym(eigval,eigvec,D);
 
     // output
-    for (unsigned int i = 0; i < 9; i++)
-    {
-        cout << A(i,i) <<"    "<< G(i) << "    " << eigval(i) << endl;
-    }
+    T.print();
+//    cout << "Jacobi" << setw(10) << "Armadillo" << endl;
+//    for (unsigned int i = 0; i < 9; i++)
+//    {
+//        cout << G(i) << setw(10) << eigval(i) << endl;
+//    }
 
     return 0;
 }
 
 mat fillmatrix(unsigned int n, double h_step, vec V)
 {
-    mat A(n-1,n-1);
-    double h_step2;
+    double h_step2 = h_step*h_step;
+    mat A = zeros<mat>(n-1,n-1);
 
-    A.zeros(); 
-    h_step2 = h_step*h_step;
-
-    A(0,0)=2./(h_step2) + V(1);
+    A(0,0)=2./h_step2 + V(1);
     for(unsigned int i = 1; i < n-1; i++){
         A(i,i) = 2./h_step2 + V(i+1);
         A(i,i-1) = -1./h_step2;
@@ -95,10 +93,8 @@ mat fillmatrix(unsigned int n, double h_step, vec V)
 
 double offnorm(mat A)
 {
-    unsigned int n;                                 // arraysize              //
+    unsigned int n = A.n_rows;                      // arraysize              //
     double offA;                                    // norm over nondiags     //
-
-    n = A.n_rows;                                   // assume symmetry        //    
 
     // loop over (upper) nondiagonal elements
     for (unsigned int i = 0; i < n; i++) {
@@ -113,11 +109,8 @@ double offnorm(mat A)
 
 void searchlargest(mat A, unsigned int &p, unsigned int &q)
 {
-    unsigned int n;                                 // arraysize              //
-    double max;                                     // largest value in mat.  //
-                                                                                
-    n  = A.n_rows;                                  // assume symmetry        //
-    max = 0.;
+    unsigned int n = A.n_rows;                      // arraysize              //
+    double max = 0.0;                               // largest value in mat.  //
 
     // loop over (upper) nondiagonal elements 
     for (unsigned int i = 0; i < n; i++) {
@@ -133,10 +126,8 @@ void searchlargest(mat A, unsigned int &p, unsigned int &q)
 
 void jacobi(mat &A, mat &R, unsigned int k, unsigned int l)
 {
-    unsigned int n;                                 // arraysize              //
+    unsigned int n = A.n_rows;                      // arraysize              //
     double s, c;                                    // sin(theta),cos(theta)  // 
-
-    n  = A.n_rows;                                  // assume symmetry        //
 
     if ( A(k,l) != 0.0 ) {
         double t, tau;                              // for defining s,c       //
@@ -178,4 +169,29 @@ void jacobi(mat &A, mat &R, unsigned int k, unsigned int l)
         R(i,l) = c*ril + s*rik;
     }
     return ;
+}
+
+void sorting(mat A, mat R, mat &T, vec &lambda)
+{
+    unsigned int n = A.n_rows;                      // assume symmetry        //
+
+    // Sorting of eigenvalues
+    vec K;
+    K.zeros(n);
+    for (unsigned int i = 0; i < n; i++)
+    {
+        K(i) = A(i,i);
+    }
+    lambda = sort(K);
+
+    // Sorting of eigenvectors
+    T.zeros(n,n);
+    uvec ev_indices = sort_index(K);
+    for (unsigned int i = 0; i < n; i++)
+    {
+        for (unsigned int j = 0; j < n; j++)
+        {
+            T(j,i) = R(j,ev_indices(i));
+        }
+    }
 }
