@@ -26,7 +26,7 @@ int main()
     vec eigval;                                     // routine                //  
     
 
-    n=30;                                          // dimension              //
+    n=100;                                          // dimension              //
     tolerance = 1e-15;                              // tolerance              //
     rho_min = 0.;                                   // area of calculation    //
     rho_max = 5.0;                                  //                        //
@@ -163,7 +163,7 @@ void jacobi(mat &A, mat &R, unsigned int k, unsigned int l)
     A(l,l) = s*s*akk + 2.0*c*s*A(k,l) + c*c*all;
     A(k,l) = 0.0; // hard-coding non-diagonal elements by hand
     A(l,k) = 0.0; // same here
-    for (unsigned int i = 1; i < n; i++ ) {
+    for (unsigned int i = 0; i < n; i++ ) {
         if (i != k && i != l ) {
             aik = A(i,k);
             ail = A(i,l);
