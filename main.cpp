@@ -25,7 +25,7 @@ int main()
     double rho = rho_min;                           //                        //
     double h_step = (rho_max-rho_min)/n;            // stepwidth              //
     double tolerance = 1e-10;                       //                        //
-    double omega = 0.5;                             // strength of osc. pot.  //
+    double omega = .05;                             // strength of osc. pot.  //
     double offA;                                    //                        //
     vec V = zeros<vec>(n+1);                        // potential              // 
     mat A, R;                                       // Mainmat., Eigenvec.    // 
@@ -38,8 +38,8 @@ int main()
     // TODO: write an init_potential function for arbitrary potentials
     for (unsigned int i = 0; i <= n; i++)
     {
-        V(i) = rho*rho;
-        //V(i) = rho*rho*omega*omega-1./rho;
+        //V(i) = rho*rho;                             // one electron           //
+        V(i) = rho*rho*omega*omega+1./rho;        // two electrons          // 
         rho += h_step;
     }
 
@@ -67,12 +67,21 @@ int main()
     eig_sym(eigval,eigvec,D);
 
     // output
-    T.print();
+    // eigenvalues
 //    cout << "Jacobi" << setw(10) << "Armadillo" << endl;
 //    for (unsigned int i = 0; i < 9; i++)
 //    {
-//        cout << G(i) << setw(10) << eigval(i) << endl;
+//       // cout << G(i) << setw(10) << eigval(i) << endl;
+//        cout << lambda(i) << setw(10) << eigval(i) << endl;
 //    }
+    
+    // eigenvectors for ground state
+    cout << "Jacobi" << "     " << "Armadillo" << endl;
+    for (unsigned int i = 0; i < n-1; i++)
+    {
+        //cout << T(i,0) << endl << "     " << eigvec(i,0) << endl;
+        cout << setprecision(10) << lambda(i) << "     " << setprecision(10) << eigval(i) << endl;
+    }
 
     return 0;
 }
