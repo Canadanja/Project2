@@ -4,6 +4,7 @@
 #include <math.h>
 #include <armadillo>
 #include <iomanip>
+#include <time.h>
 
 using namespace std;
 using namespace arma;
@@ -17,22 +18,31 @@ void sorting (mat, mat, mat &, vec &);
 
 int main()
 {
-    unsigned int n = 100.;                          // array size             //
+    clock_t time_jacobi, time_arma;                 // calculate time         //
+    unsigned int nmin = 100.;                        // array size             //
+    unsigned int nmax = 120.;                       // varying n              //
+//    unsigned int n=500;
     unsigned int p = 0.;                            //                        //
     unsigned int q = 0.;                            //                        //
     double rho_min = 0.;                            // min. calc. area        //
     double rho_max = 5.;                            // max. calc. area        //
+    cout << "dimension" << setw(20) << "# rotations" << setw(20) << "time_jacobi" << setw(20) << "time_arma" << endl;
+   for(unsigned int n=nmin; n< nmax; n=n+10){      // nloop                 //
+    time_jacobi=0;
+    time_arma=0;
     double rho = rho_min;                           //                        //
     double h_step = (rho_max-rho_min)/n;            // stepwidth              //
-    double tolerance = 1e-10;                       //                        //
+    double tolerance = 1e-8;                        //                        //
     double omega = 0.5;                             // strength of osc. pot.  //
     double offA;                                    //                        //
-    vec V = zeros<vec>(n+1);                        // potential              // 
+    vec V = zeros<vec>(n+1);                        // potential              //
     mat A, R;                                       // Mainmat., Eigenvec.    // 
     mat T;                                          // sorted Eigenvectors    //
     vec lambda;                                     // sorted Eigenvalues     //
     mat D, eigvec;                                  // same for armadillo     //
-    vec eigval;                                     //                        //  
+    vec eigval;                                     // counter of rotations   //
+    vec m=zeros<vec>((nmin-nmax)/4);
+
 
     // define potential
     // TODO: write an init_potential function for arbitrary potentials
@@ -49,30 +59,41 @@ int main()
     A = fillmatrix(n,h_step,V);                     // dense,symmetric matrix //
     R.eye(n-1,n-1);                                 // eigenvector-matrix     //
 
+    time_jacobi = clock() ;
     offA = offnorm(A);
     while (offA > tolerance)
     {
         searchlargest(A,p,q);                       // search f. larg. elem.  // 
         jacobi(A,R,p,q);                            // jacobi rotation        // 
         offA = offnorm(A);                          // calculate new norm     // 
+        m(n) =m(n)+1;                                        // counter of steps       //
     }
-    
+    time_jacobi = clock() - time_jacobi;
     // bring the eigenvalues and its associated eigenvectors in right order   // 
     sorting(A,R,T,lambda);                          // T, lambda -> sorted    // 
     // TODO: Normalization is missing!
     /*------------------------------------------------------------------------*/
 
     // Armadillo routine for eigenvalues
+    time_arma = clock();
     D = fillmatrix(n,h_step,V);                      
     eig_sym(eigval,eigvec,D);
+    time_arma = clock() - time_arma;
+   // double diff = 0;
 
     // output
-    T.print();
-//    cout << "Jacobi" << setw(10) << "Armadillo" << endl;
-//    for (unsigned int i = 0; i < 9; i++)
+    //T.print();
+//    cout.precision(6);
+//    cout <<"n=" << n << "Jacobi" << setw(25) << "Armadillo" << endl;
+//    for (unsigned int i = 0; i < 5; i++)
 //    {
-//        cout << G(i) << setw(10) << eigval(i) << endl;
+//        diff = lambda(i)-eigval(i);
+//        cout << fixed << lambda(i) /*G(i)*/ << setw(25) << eigval(i) << setw(25) << diff << endl;
 //    }
+  //  cout << m(n) << endl;
+   cout << fixed << n << setw(20) << m(n) << setw(20) << time_jacobi << setw(20) << time_arma << endl;
+
+    }
 
     return 0;
 }
