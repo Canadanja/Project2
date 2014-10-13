@@ -4,6 +4,7 @@
 #include <math.h>
 #include <armadillo>
 #include <iomanip>
+#include <stdio.h>
 
 using namespace std;
 using namespace arma;
@@ -20,12 +21,12 @@ int main()
     unsigned int n = 100.;                          // array size             //
     unsigned int p = 0.;                            //                        //
     unsigned int q = 0.;                            //                        //
+    double omega = 1./36.8097;                             // strength of osc. pot.  //
     double rho_min = 0.;                            // min. calc. area        //
-    double rho_max = 5.;                            // max. calc. area        //
+    double rho_max = 5./sqrt(omega);                // max. calc. area        //
     double rho = rho_min;                           //                        //
     double h_step = (rho_max-rho_min)/n;            // stepwidth              //
     double tolerance = 1e-10;                       //                        //
-    double omega = .05;                             // strength of osc. pot.  //
     double offA;                                    //                        //
     vec V = zeros<vec>(n+1);                        // potential              // 
     mat A, R;                                       // Mainmat., Eigenvec.    // 
@@ -39,7 +40,7 @@ int main()
     for (unsigned int i = 0; i <= n; i++)
     {
         //V(i) = rho*rho;                             // one electron           //
-        V(i) = rho*rho*omega*omega+1./rho;        // two electrons          // 
+        V(i) = rho*rho*omega*omega + 1./rho;        // two electrons          // 
         rho += h_step;
     }
 
@@ -49,14 +50,24 @@ int main()
     A = fillmatrix(n,h_step,V);                     // dense,symmetric matrix //
     R.eye(n-1,n-1);                                 // eigenvector-matrix     //
 
+//    static char bar[] = "                                  " 
+//                        "                                 ►";
+
+////    double first = log(abs(A(0,1))), normalizzation=-log(tolerance);
+
     offA = offnorm(A);
     while (offA > tolerance)
     {
         searchlargest(A,p,q);                       // search f. larg. elem.  // 
+
+//        int loading= ((-log(abs(A(p,q))) + first)*100/(normalizzation+first)); 
+//        printf("\x1b[33m\033[40m" " %d%c %s\r ",loading, 37, &bar[40-int(loading/2.2)]);
+        
         jacobi(A,R,p,q);                            // jacobi rotation        // 
         offA = offnorm(A);                          // calculate new norm     // 
     }
     
+//    printf("\x1b[31m\033[0m");
     // bring the eigenvalues and its associated eigenvectors in right order   // 
     sorting(A,R,T,lambda);                          // T, lambda -> sorted    // 
     // TODO: Normalization is missing!
@@ -67,19 +78,9 @@ int main()
     eig_sym(eigval,eigvec,D);
 
     // output
-    // eigenvalues
-//    cout << "Jacobi" << setw(10) << "Armadillo" << endl;
-//    for (unsigned int i = 0; i < 9; i++)
-//    {
-//       // cout << G(i) << setw(10) << eigval(i) << endl;
-//        cout << lambda(i) << setw(10) << eigval(i) << endl;
-//    }
-    
-    // eigenvectors for ground state
-    cout << "Jacobi" << "     " << "Armadillo" << endl;
     for (unsigned int i = 0; i < n-1; i++)
     {
-        //cout << T(i,0) << endl << "     " << eigvec(i,0) << endl;
+        //cout << (i+1)*h_step << "; " << T(i,0) << "; " << T(i,1) << "; "  << T(i,2) << endl;
         cout << setprecision(10) << lambda(i) << "     " << setprecision(10) << eigval(i) << endl;
     }
 
